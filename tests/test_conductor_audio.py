@@ -112,6 +112,57 @@ class HandTrackingStartupTests(unittest.TestCase):
         self.assertFalse(thread.is_alive())
         self.assertEqual(len(started), 1)
 
+    def test_main_starts_hand_tracking_before_audio_engine_and_mixer_ui(self):
+        from conductor_audio import main as app_main
+        from conductor_audio.song_catalog import get_song
+
+        order = []
+        started_tracker = object()
+
+        class FakeHandTracker:
+            def __init__(self, _config):
+                order.append("tracker-created")
+
+            def stop(self):
+                order.append("tracker-stopped")
+
+        class FakeAudioEngine:
+            def __init__(self, *_args):
+                order.append("audio-created")
+
+            def start(self):
+                order.append("audio-started")
+
+            def stop(self):
+                order.append("audio-stopped")
+
+        class FakeMixerUI:
+            def __init__(self, _engine, hand_tracker=None):
+                order.append(("ui-created", hand_tracker))
+
+            def draw_once(self):
+                order.append("ui-drawn")
+
+            def run(self):
+                order.append("ui-run")
+
+        def fake_start_async(_tracker, on_started):
+            order.append("tracker-start-requested")
+            on_started(started_tracker)
+            return None
+
+        with patch("sys.argv", ["main.py", "--song", "vivalavida"]):
+            with patch.object(app_main, "select_builtin_song", return_value=get_song("vivalavida")):
+                with patch.object(app_main, "AudioEngine", FakeAudioEngine):
+                    with patch.object(app_main, "start_hand_tracker_async", side_effect=fake_start_async):
+                        with patch("hand_tracking.HandTracker", FakeHandTracker):
+                            with patch("hand_tracking.demo.make_config", return_value=object()):
+                                with patch("conductor_audio.mixer_ui.MixerUI", FakeMixerUI):
+                                    app_main.main()
+
+        self.assertLess(order.index("tracker-start-requested"), order.index("audio-created"))
+        self.assertLess(order.index("tracker-start-requested"), order.index(("ui-created", started_tracker)))
+
 
 class AudioEngineControlTests(unittest.TestCase):
     def test_volume_uses_perceptual_cc7_curve(self):

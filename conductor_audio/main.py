@@ -114,18 +114,31 @@ def main() -> None:
         mapping = song.section_mapping
         print_mapping(mapping, f"built-in song: {song.title}")
 
-    engine = AudioEngine(midi_path, parsed.soundfont, mapping)
     hand_tracker = None
+    started_hand_tracker = {"tracker": None}
+    ui_holder = {"ui": None}
+
+    def on_hand_tracker_started(started) -> None:
+        started_hand_tracker["tracker"] = started
+        ui = ui_holder["ui"]
+        if ui is not None:
+            setattr(ui, "hand_tracker", started)
+
     if not parsed.no_hand_tracking:
         from hand_tracking import HandTracker
         from hand_tracking.demo import make_config
 
         hand_tracker = HandTracker(make_config(parsed.camera_index))
+    startup_thread = start_hand_tracker_async(hand_tracker, on_hand_tracker_started)
+
+    engine = AudioEngine(midi_path, parsed.soundfont, mapping)
     from .mixer_ui import MixerUI
 
-    ui = MixerUI(engine, hand_tracker=None)
+    ui = MixerUI(engine, hand_tracker=started_hand_tracker["tracker"])
+    ui_holder["ui"] = ui
+    if started_hand_tracker["tracker"] is not None:
+        ui.hand_tracker = started_hand_tracker["tracker"]
     ui.draw_once()
-    startup_thread = start_hand_tracker_async(hand_tracker, lambda started: setattr(ui, "hand_tracker", started))
     try:
         engine.start()
         ui.run()
