@@ -133,6 +133,35 @@ The engine API in `conductor_audio/audio_engine.py` is the future gesture integr
 - `S` then `1` / `2` / `3` / `4`: toggle solo
 - `Esc`: quit
 
+## Gesture Training Capture
+
+The BMI270 gesture collector uses a Seeed Studio XIAO ESP32S3 with BMI270 I2C wired as:
+
+- SDA: `D4`
+- SCL: `D5`
+
+Build and upload the firmware:
+
+```bash
+pio run -d firmware
+pio run -d firmware -t upload
+pio device monitor -d firmware
+```
+
+After the serial monitor prints `READY`, collect one labeled 1-second gesture sample:
+
+```bash
+python tools/collect_gesture.py --port /dev/cu.usbmodemXXXX
+```
+
+The collector asks which gesture is being captured, waits for Enter, starts after 2 seconds, and writes a CSV file with 100 samples at 100 Hz under `data/wave/<gesture>/`.
+
+Each CSV uses:
+
+```csv
+timestamp,ax,ay,az,gx,gy,gz
+```
+
 ## Tests
 
 ```bash
