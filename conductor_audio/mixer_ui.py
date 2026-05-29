@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import pygame
 
 from .auto_detect import SECTION_ORDER
+
+_ASSETS_DIR = Path(__file__).parent
 
 
 WINDOW_SIZE = (1200, 700)
@@ -81,13 +84,15 @@ class MixerUI:
         pygame.init()
         self.engine = engine
         self.hand_tracker = hand_tracker
-        self.screen = pygame.display.set_mode(WINDOW_SIZE)
+        self.screen = pygame.display.set_mode(WINDOW_SIZE, pygame.SCALED)
         pygame.display.set_caption("Conductor Baton Mixer")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Arial", 20)
         self.small_font = pygame.font.SysFont("Arial", 14)
         self.title_font = pygame.font.SysFont("Arial", 28, bold=True)
         self.bpm_font = pygame.font.SysFont("Arial", 36, bold=True)
+        raw_bg = pygame.image.load(_ASSETS_DIR / "orchestra.png").convert()
+        self.bg = pygame.transform.scale(raw_bg, WINDOW_SIZE)
         self.running = True
         self.dragging: tuple[str, str] | None = None
         self.command_mode: str | None = None
@@ -151,6 +156,8 @@ class MixerUI:
         key = event.key
         if key == pygame.K_ESCAPE:
             self.running = False
+        elif key == pygame.K_F11:
+            pygame.display.toggle_fullscreen()
         elif key == pygame.K_SPACE:
             self.engine.toggle_pause()
         elif key in (pygame.K_m, pygame.K_s):
@@ -225,10 +232,15 @@ class MixerUI:
             audible = not self.muted[section] and (not any_solo or self.soloed[section])
             self.engine.set_volume(section, self.base_volumes[section] if audible else 0.0)
 
+    def _draw_panel(self, rect: pygame.Rect, color: tuple, alpha: int, border_radius: int = 8) -> None:
+        surf = pygame.Surface(rect.size, pygame.SRCALPHA)
+        pygame.draw.rect(surf, (*color, alpha), surf.get_rect(), border_radius=border_radius)
+        self.screen.blit(surf, rect.topleft)
+
     def _draw(self) -> None:
         state = self.engine.get_state()
         hand_state = self._hand_state()
-        self.screen.fill(BG)
+        self.screen.blit(self.bg, (0, 0))
         for section in SECTION_ORDER:
             self._draw_section(section, state, hand_state)
         self._draw_tempo(state, hand_state)
@@ -243,7 +255,7 @@ class MixerUI:
         dimmed = self.muted[section] or (any_solo and not self.soloed[section])
         hand_target = self._hand_targeted_section(hand_state)
         hand_active = hand_target == section or hand_target == "all"
-        pygame.draw.rect(self.screen, PANEL_DIM if dimmed else PANEL, strip["strip"], border_radius=8)
+        self._draw_panel(strip["strip"], PANEL_DIM if dimmed else PANEL, 180)
         border_color = CYAN if hand_active else (66, 66, 76)
         border_width = 4 if hand_active else 1
         pygame.draw.rect(self.screen, border_color, strip["strip"], border_width, border_radius=8)
@@ -301,7 +313,7 @@ class MixerUI:
 
     def _draw_tempo(self, state: dict, hand_state=None) -> None:
         strip = self.layout["tempo"]
-        pygame.draw.rect(self.screen, PANEL, strip["strip"], border_radius=8)
+        self._draw_panel(strip["strip"], PANEL, 180)
         pygame.draw.rect(self.screen, (66, 66, 76), strip["strip"], 1, border_radius=8)
         label = self.title_font.render("Tempo", True, TEXT)
         self.screen.blit(label, label.get_rect(center=(strip["strip"].centerx, 64)))
@@ -327,12 +339,10 @@ class MixerUI:
         else:
             detected = "yes" if hand_state.detected else "no"
             target = hand_state.targeted_section or "none"
-            bpm = "--" if hand_state.bpm is None else f"{hand_state.bpm:.0f}"
             lines = (
                 f"detected {detected}",
                 f"{hand_state.fingers_extended} fingers",
                 f"target {target}",
-                f"hand bpm {bpm}",
             )
         for index, line in enumerate(lines):
             surface = self.small_font.render(line, True, TEXT if hand_state is not None else MUTED_TEXT)
