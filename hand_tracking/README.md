@@ -32,6 +32,11 @@ Non-thumb finger counts select sections directly:
 - 3 fingers: Rhythm
 - 4 fingers: Atmosphere
 
+Thumb-only static gestures control tempo and do not affect section selection:
+
+- Thumbs up: next tempo step
+- Thumbs down: previous tempo step
+
 To show the old camera overlay for debugging:
 
 ```bash
@@ -75,6 +80,7 @@ while True:
 - `position`: normalized wrist `(x, y)`
 - `pose`: `fist`, `pointing`, `open`, or `ambiguous`
 - `fingers_extended`: count from 0 to 5
+- `tempo_gesture`: `thumbs_up`, `thumbs_down`, or `None`
 - `targeted_section`: zone name, `all`, or `None`
 - `selection_locked`: true when pose is `fist`
 - `bpm`: detected BPM, or `None` until enough beats are observed
@@ -99,10 +105,12 @@ MediaPipe handedness labels assume a mirrored camera image. The default `MIRROR_
 2. Move the non-dominant hand around the frame and confirm the targeted section updates.
 3. Make a fist and confirm the selection locks; moving the fist should not change the targeted section.
 4. Open the hand fully and confirm `Targeted: all`.
-5. Beat time vertically with the non-dominant hand and confirm BPM appears and stabilizes.
-6. Stop beating and confirm the last BPM freezes instead of dropping to `None`.
-7. Hide both hands and confirm `Detected: no`.
-8. Bring only the dominant hand into frame and confirm it does not update the state.
+5. Hold a strict thumbs-up pose and confirm the debug view shows `Tempo: thumbs_up`.
+6. Hold a strict thumbs-down pose and confirm the debug view shows `Tempo: thumbs_down`.
+7. Beat time vertically with the non-dominant hand and confirm BPM appears and stabilizes.
+8. Stop beating and confirm the last BPM freezes instead of dropping to `None`.
+9. Hide both hands and confirm `Detected: no`.
+10. Bring only the dominant hand into frame and confirm it does not update the state.
 
 ## Known Limitations
 

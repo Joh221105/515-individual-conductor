@@ -9,7 +9,7 @@ import pygame
 
 from .auto_detect import SECTION_ORDER
 
-_WAND_VOLUME_STEP = 0.08
+_VOLUME_STEP = 0.10
 
 _ASSETS_DIR = Path(__file__).parent
 
@@ -29,10 +29,10 @@ YELLOW = (234, 179, 8)
 CYAN = (70, 210, 255)
 
 SECTION_LABELS = {
-    "strings": "🎻 Strings",
-    "vocals": "🎤 Vocals",
-    "rhythm": "🥁 Rhythm",
-    "atmosphere": "✨ Atmosphere",
+    "strings": "Strings",
+    "vocals": "Vocals",
+    "rhythm": "Rhythm",
+    "atmosphere": "Atmosphere",
 }
 
 TEMPO_STEPS = (100, 120, 140, 160, 180)
@@ -98,6 +98,7 @@ class MixerUI:
         self.running = True
         self.dragging: tuple[str, str] | None = None
         self.command_mode: str | None = None
+        self._tempo_gesture_armed = True
         self.base_volumes = {section: 1.0 for section in SECTION_ORDER}
         self.muted = {section: False for section in SECTION_ORDER}
         self.soloed = {section: False for section in SECTION_ORDER}
@@ -189,7 +190,7 @@ class MixerUI:
                 self.command_mode = None
                 self._apply_effective_volumes()
             else:
-                step = -0.08 if (event.mod & pygame.KMOD_SHIFT) else 0.08
+                step = -_VOLUME_STEP if (event.mod & pygame.KMOD_SHIFT) else _VOLUME_STEP
                 self._set_base_volume(section, self.base_volumes[section] + step)
 
     def _handle_mouse_down(self, pos: tuple[int, int]) -> None:
@@ -252,6 +253,7 @@ class MixerUI:
     def _draw(self) -> None:
         state = self.engine.get_state()
         hand_state = self._hand_state()
+        self._apply_hand_tempo_gesture(hand_state)
         self.screen.blit(self.bg, (0, 0))
         for section in SECTION_ORDER:
             self._draw_section(section, state, hand_state)
@@ -275,11 +277,8 @@ class MixerUI:
         label = SECTION_LABELS[section]
         label_color = CYAN if hand_active else TEXT if not dimmed else MUTED_TEXT
         label_surface = self.title_font.render(label, True, label_color)
-        self.screen.blit(label_surface, label_surface.get_rect(center=(strip["strip"].centerx, 62)))
+        self.screen.blit(label_surface, label_surface.get_rect(center=(strip["strip"].centerx, strip["strip"].y + 72)))
         self._draw_section_number(section, strip["strip"], hand_active, dimmed)
-        if hand_active:
-            tag = self.small_font.render("HAND TARGET", True, CYAN)
-            self.screen.blit(tag, tag.get_rect(center=(strip["strip"].centerx, 98)))
 
         self._draw_fader(strip["fader"], self.base_volumes[section], dimmed)
         self._draw_meter(strip["meter"], state["meters"].get(section, 0.0), dimmed)
@@ -292,14 +291,15 @@ class MixerUI:
         pygame.draw.rect(self.screen, SUBTLE, icon_rect, 2, border_radius=10)
 
     def _draw_section_number(self, section: str, rect: pygame.Rect, active: bool, dimmed: bool) -> None:
-        badge = pygame.Rect(rect.x + 14, rect.y + 14, 34, 34)
+        badge = pygame.Rect(0, 0, 42, 42)
+        badge.center = (rect.centerx, rect.y + 34)
         fill = CYAN if active else (58, 58, 66)
         if dimmed and not active:
             fill = PANEL_DIM
-        pygame.draw.rect(self.screen, fill, badge, border_radius=17)
-        pygame.draw.rect(self.screen, (112, 112, 122), badge, 1, border_radius=17)
+        pygame.draw.rect(self.screen, fill, badge, border_radius=21)
+        pygame.draw.rect(self.screen, (112, 112, 122), badge, 1, border_radius=21)
         color = (18, 22, 24) if active else TEXT if not dimmed else MUTED_TEXT
-        surface = self.font.render(str(section_target_number(section)), True, color)
+        surface = self.title_font.render(str(section_target_number(section)), True, color)
         self.screen.blit(surface, surface.get_rect(center=badge.center))
 
     def _draw_fader(self, rect: pygame.Rect, value: float, dimmed: bool) -> None:
@@ -355,10 +355,12 @@ class MixerUI:
         else:
             detected = "yes" if hand_state.detected else "no"
             target = hand_state.targeted_section or "none"
+            gesture = hand_state.tempo_gesture or "none"
             lines = (
                 f"detected {detected}",
                 f"{hand_state.fingers_extended} fingers",
                 f"target {target}",
+                f"tempo {gesture}",
             )
         for index, line in enumerate(lines):
             surface = self.small_font.render(line, True, TEXT if hand_state is not None else MUTED_TEXT)
@@ -369,6 +371,23 @@ class MixerUI:
             return None
         return self.hand_tracker.get_state()
 
+    def _apply_hand_tempo_gesture(self, hand_state) -> None:
+        gesture = None
+        if hand_state is not None and hand_state.detected:
+            gesture = hand_state.tempo_gesture
+
+        if gesture is None:
+            self._tempo_gesture_armed = True
+            return
+        if not self._tempo_gesture_armed:
+            return
+
+        self._tempo_gesture_armed = False
+        if gesture == "thumbs_up":
+            self._set_tempo(next_tempo_step(self.tempo))
+        elif gesture == "thumbs_down":
+            self._set_tempo(previous_tempo_step(self.tempo))
+
     def apply_wand_gesture(self, gesture: str) -> None:
         section = self._hand_targeted_section() or "all"
 
@@ -377,10 +396,10 @@ class MixerUI:
 
         if gesture == "volume_up":
             for s in targets:
-                self._set_base_volume(s, self.base_volumes[s] + _WAND_VOLUME_STEP)
+                self._set_base_volume(s, self.base_volumes[s] + _VOLUME_STEP)
         elif gesture == "volume_down":
             for s in targets:
-                self._set_base_volume(s, self.base_volumes[s] - _WAND_VOLUME_STEP)
+                self._set_base_volume(s, self.base_volumes[s] - _VOLUME_STEP)
         elif gesture == "mute":
             for s in targets:
                 self.muted[s] = not self.muted[s]

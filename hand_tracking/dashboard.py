@@ -134,11 +134,13 @@ def _draw_status_strip(
     bpm = "--" if state.bpm is None else f"{state.bpm:.1f}"
     tempo = _audio_tempo(audio_state)
     target = state.targeted_section or "none"
+    gesture = state.tempo_gesture or "none"
     beat = "BEAT" if state.beat_just_fired else "idle"
     text = (
         f"Detected: {'yes' if state.detected else 'no'}    "
         f"Pose: {state.pose}    Fingers: {state.fingers_extended}    "
-        f"Targeted: {target}    Locked: {'yes' if state.selection_locked else 'no'}    "
+        f"Tempo Gesture: {gesture}    Targeted: {target}    "
+        f"Locked: {'yes' if state.selection_locked else 'no'}    "
         f"Hand BPM: {bpm}    Song: {tempo} BPM    {beat}"
     )
     cv2.putText(frame, text, (x + 18, y + 39), cv2.FONT_HERSHEY_SIMPLEX, 0.58, TEXT, 1, cv2.LINE_AA)

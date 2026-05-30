@@ -13,7 +13,9 @@ import numpy as np
 
 from hand_tracking.beat import BeatTracker
 from hand_tracking.pose import (
+    GestureDebouncer,
     PoseDebouncer,
+    classify_thumb_gesture,
     classify_pose,
     count_extended_fingers,
     count_extended_non_thumb_fingers,
@@ -28,6 +30,7 @@ class HandState:
     position: tuple[float, float]
     pose: str
     fingers_extended: int
+    tempo_gesture: str | None
     targeted_section: str | None
     selection_locked: bool
     bpm: float | None
@@ -51,6 +54,7 @@ class HandTracker:
         self._position: tuple[float, float] = (0.0, 0.0)
         self._position_initialized = False
         self._pose_debouncer = PoseDebouncer(self.config.POSE_DEBOUNCE_MS)
+        self._tempo_gesture_debouncer = GestureDebouncer(self.config.POSE_DEBOUNCE_MS)
         self._zone_selector = ZoneSelector(self.config.ZONES, self.config.ZONE_HYSTERESIS)
         self._beat_tracker = BeatTracker(
             self.config.MIN_BEAT_INTERVAL_S,
@@ -64,6 +68,7 @@ class HandTracker:
             position=self._position,
             pose="ambiguous",
             fingers_extended=0,
+            tempo_gesture=None,
             targeted_section=None,
             selection_locked=False,
             bpm=None,
@@ -145,9 +150,11 @@ class HandTracker:
         if free_hand is None:
             beat = self._beat_tracker.update(now, None)
             self._latest_landmarks = None
+            self._tempo_gesture_debouncer.reset()
             return replace(
                 self._state,
                 detected=False,
+                tempo_gesture=None,
                 bpm=beat.bpm,
                 beat_just_fired=False,
             )
@@ -168,6 +175,10 @@ class HandTracker:
         fingers = count_extended_fingers(landmarks, handedness)
         selection_fingers = count_extended_non_thumb_fingers(landmarks)
         pose = self._pose_debouncer.update(classify_pose(fingers), now)
+        tempo_gesture = self._tempo_gesture_debouncer.update(
+            classify_thumb_gesture(landmarks, handedness),
+            now,
+        )
         self._zone_selector.update(self._position)
         target = target_from_finger_count(selection_fingers, tuple(self.config.ZONES.keys()))
         beat = self._beat_tracker.update(now, self._position[1])
@@ -179,6 +190,7 @@ class HandTracker:
             position=self._position,
             pose=pose,
             fingers_extended=fingers,
+            tempo_gesture=tempo_gesture,
             targeted_section=target,
             selection_locked=False,
             bpm=beat.bpm,
@@ -233,6 +245,7 @@ class HandTracker:
             f"Detected: {'yes' if state.detected else 'no'}",
             f"Pose: {state.pose}",
             f"Fingers: {state.fingers_extended}",
+            f"Tempo: {state.tempo_gesture or 'none'}",
             f"Targeted: {state.targeted_section or 'none'}",
             f"Locked: {'yes' if state.selection_locked else 'no'}",
             f"BPM: {'--' if state.bpm is None else f'{state.bpm:.1f}'}",
