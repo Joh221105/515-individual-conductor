@@ -9,6 +9,8 @@ import pygame
 
 from .auto_detect import SECTION_ORDER
 
+_WAND_VOLUME_STEP = 0.08
+
 _ASSETS_DIR = Path(__file__).parent
 
 
@@ -103,6 +105,16 @@ class MixerUI:
         self.tempo = nearest_tempo_step(self.original_tempo)
         self.engine.set_tempo(self.tempo)
         self.layout = self._build_layout()
+        _section_filenames = {
+            "strings": "strings.png",
+            "vocals": "vocal.png",
+            "rhythm": "rhythm.png",
+            "atmosphere": "atmosphere.png",
+        }
+        self.section_images: dict[str, pygame.Surface] = {}
+        for section, filename in _section_filenames.items():
+            raw = pygame.image.load(_ASSETS_DIR / filename).convert()
+            self.section_images[section] = pygame.transform.scale(raw, (64, 64))
 
     def run(self) -> None:
         while self.running:
@@ -274,6 +286,10 @@ class MixerUI:
 
         Button(strip["mute"], "M", self.muted[section]).draw(self.screen, self.small_font, dimmed)
         Button(strip["solo"], "S", self.soloed[section]).draw(self.screen, self.small_font, dimmed)
+        icon = self.section_images[section]
+        icon_rect = icon.get_rect(center=(strip["strip"].centerx, strip["mute"].centery))
+        self.screen.blit(icon, icon_rect)
+        pygame.draw.rect(self.screen, SUBTLE, icon_rect, 2, border_radius=10)
 
     def _draw_section_number(self, section: str, rect: pygame.Rect, active: bool, dimmed: bool) -> None:
         badge = pygame.Rect(rect.x + 14, rect.y + 14, 34, 34)
@@ -352,6 +368,26 @@ class MixerUI:
         if self.hand_tracker is None:
             return None
         return self.hand_tracker.get_state()
+
+    def apply_wand_gesture(self, gesture: str) -> None:
+        section = self._hand_targeted_section() or "all"
+
+        all_selected = section == "all"
+        targets = list(SECTION_ORDER) if all_selected else [section]
+
+        if gesture == "volume_up":
+            for s in targets:
+                self._set_base_volume(s, self.base_volumes[s] + _WAND_VOLUME_STEP)
+        elif gesture == "volume_down":
+            for s in targets:
+                self._set_base_volume(s, self.base_volumes[s] - _WAND_VOLUME_STEP)
+        elif gesture == "mute":
+            for s in targets:
+                self.muted[s] = not self.muted[s]
+            self._apply_effective_volumes()
+        elif gesture == "solo" and not all_selected:
+            self.soloed[section] = not self.soloed[section]
+            self._apply_effective_volumes()
 
     def _hand_targeted_section(self, hand_state=None) -> str | None:
         state = self._hand_state() if hand_state is None else hand_state

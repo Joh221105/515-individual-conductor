@@ -101,6 +101,7 @@ def main() -> None:
     args.add_argument("--mapping", type=Path, default=None, help="Manual mapping file for a custom MIDI.")
     args.add_argument("--camera-index", type=int, default=None)
     args.add_argument("--no-hand-tracking", action="store_true")
+    args.add_argument("--no-wand", action="store_true", help="Disable BLE wand connection.")
     parsed = args.parse_args()
 
     if parsed.midi is not None:
@@ -139,10 +140,23 @@ def main() -> None:
     if started_hand_tracker["tracker"] is not None:
         ui.hand_tracker = started_hand_tracker["tracker"]
     ui.draw_once()
+
+    wand = None
+    if not parsed.no_wand:
+        try:
+            from .wand_ble import WandController
+            wand = WandController(ui)
+            wand.start()
+            LOGGER.info("Wand BLE listener started (scanning for ConductorWand)")
+        except ImportError:
+            LOGGER.warning("bleak not installed — wand disabled. Run: pip install bleak")
+
     try:
         engine.start()
         ui.run()
     finally:
+        if wand is not None:
+            wand.stop()
         if startup_thread is not None:
             startup_thread.join(timeout=2.0)
         if hand_tracker is not None:

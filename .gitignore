@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 *.sf2
 .pytest_cache/
+.DS_Store
