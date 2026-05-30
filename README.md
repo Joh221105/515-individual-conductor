@@ -52,7 +52,16 @@ conductor_audio/assets/accents/rhythm_accent.wav
 conductor_audio/assets/accents/atmosphere_accent.wav
 ```
 
-## Run
+## Run the App
+
+Run these commands from the repository root. If you just installed the
+dependencies, activate the virtual environment first:
+
+```bash
+source .venv/bin/activate
+```
+
+Start the main mixer app:
 
 ```bash
 python -m conductor_audio.main
@@ -60,13 +69,28 @@ python -m conductor_audio.main
 
 The app opens a song picker first. Choose Viva La Vida, Demons, or Titanium, then the mixer starts with that song's saved section mapping.
 
-The mixer starts hand tracking in the same window by default and highlights sections from non-thumb finger count: closed hand = all, 1 finger = Strings, 2 = Vocals, 3 = Rhythm, 4 = Atmosphere. The section strips are labeled 1-4 to match the gesture mapping.
+The mixer starts MIDI playback, opens the pygame mixer window, and starts hand tracking by default. Hand tracking highlights sections from non-thumb finger count: closed hand = all, 1 finger = Strings, 2 = Vocals, 3 = Rhythm, 4 = Atmosphere. The section strips are labeled 1-4 to match the gesture mapping. Thumb-only gestures control tempo: thumbs up moves to the next tempo step, thumbs down moves to the previous tempo step.
+
+You can skip the song picker and open a built-in song directly:
+
+```bash
+python -m conductor_audio.main --song vivalavida
+python -m conductor_audio.main --song demons
+python -m conductor_audio.main --song titanium
+```
 
 To force a camera index or disable tracking:
 
 ```bash
 python -m conductor_audio.main --camera-index 0
 python -m conductor_audio.main --no-hand-tracking
+```
+
+If the wrong camera opens, list available camera indexes, then rerun the app with the index you want:
+
+```bash
+python demo.py --list-cameras
+python -m conductor_audio.main --camera-index 1
 ```
 
 To run the standalone hand-tracking debug display:
@@ -83,15 +107,26 @@ If you need to force the built-in computer camera, use:
 python demo.py --camera-index 0
 ```
 
-You can override asset paths:
+To run without the BLE wand scan, use:
 
 ```bash
-python -m conductor_audio.main --song demons
+python -m conductor_audio.main --no-wand
+```
+
+You can also override asset paths:
+
+```bash
 python demo.py --song titanium
 python -m conductor_audio.main --midi /path/to/song.mid --soundfont /path/to/FluidR3_GM.sf2
 ```
 
-At startup the app prints the channel-to-section mapping it will use.
+For custom MIDI files, the app auto-detects the channel-to-section mapping from MIDI track names unless you pass a manual mapping file:
+
+```bash
+python -m conductor_audio.main --midi /path/to/song.mid --mapping /path/to/section_mapping.py
+```
+
+At startup the app prints the channel-to-section mapping it will use. Press `Esc` in the mixer window to quit.
 
 ## Section Mapping
 
